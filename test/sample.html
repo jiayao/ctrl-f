@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lantern — Terms, billing and a note from the team</title>
+<style>
+  body{margin:0;font:17px/1.6 Georgia,"Times New Roman",serif;color:#222;background:#fff}
+  nav{font:14px system-ui,sans-serif;display:flex;gap:22px;padding:14px 32px;border-bottom:1px solid #ddd}
+  main{max-width:680px;margin:0 auto;padding:36px 24px 80px}
+  h1{font-size:30px;line-height:1.2}
+  h2{font-size:21px;margin-top:40px}
+  aside{font:14px system-ui,sans-serif;background:#f4f4f4;padding:14px 18px;border-radius:8px;margin:28px 0}
+  .muted{color:#666}
+</style>
+</head>
+<body>
+<nav><span>Product</span><span>Pricing</span><span>Docs</span><span>Status</span><span>Sign in</span></nav>
+<main>
+<h1>Lantern terms of service, billing, and a note from the team</h1>
+<p class="muted">Last revised 3 September 2026. This page combines our terms, our billing policy, and an update from the people who build Lantern.</p>
+
+<h2>Your account</h2>
+<p>You need to be at least sixteen to open an account, and if you are under eighteen your school or guardian should know you are using the service. One person, one account: shared logins get suspended without much ceremony. You are responsible for anything that happens under your credentials, so use a passphrase you do not use elsewhere and turn on two-step verification in settings.</p>
+<p>We may close accounts that sit untouched for two years. Before we do, we send three reminders to the address on file over ninety days, and you can export everything at any point during that window. If we believe an account is being used to harass other people or to distribute malware, we can lock it immediately and ask questions afterwards.</p>
+
+<h2>What you keep and what you give us</h2>
+<p>Everything you write in Lantern belongs to you. We do not train models on your notes, we do not sell them, and we do not read them except when you ask support to look at a specific page. To run the service we need a narrow licence: to store your content, back it up, render it on your devices, and show it to people you deliberately share it with. That licence ends when you delete the content or the account, apart from backups, which roll off within thirty days.</p>
+<p>Published pages are different. If you make a page public, anyone with the link can read it, search engines may index it, and other Lantern users can quote it with attribution. Unpublishing stops new indexing but cannot recall copies already made.</p>
+
+<h2>Billing</h2>
+<p>Lantern is free for up to two hundred notes. Above that, the personal plan is billed monthly or yearly, and the yearly price works out to two months free. Prices are shown before tax; VAT or sales tax is added at checkout where we are required to collect it.</p>
+<p>If you cancel, you keep access until the end of the period you already paid for, and nothing further is charged. Within the first fourteen days of a new subscription we return the payment in full, no reasons needed. After that we do not give money back for unused time, with one exception: if the service was unavailable for more than twenty-four hours in a billing month, write to us and we will credit that month.</p>
+<p>Price changes apply from your next renewal, never mid-cycle, and we email at least thirty days ahead. If you are on a legacy plan, you stay on it until you change plans yourself.</p>
+
+<aside>Need an invoice with a company name and address on it? Add the details under Billing and every future receipt picks them up. Past receipts can be regenerated from the same screen.</aside>
+
+<h2>Availability and support</h2>
+<p>We aim for the service to be up all the time and it usually is, but we do not promise a specific uptime figure on the personal plan. The team plan carries a written commitment and a credit schedule; that document is linked from the team plan page. Support answers within two business days for personal accounts and within eight working hours for teams. We are a small company in one time zone, so a question sent on Friday evening will usually be answered on Monday.</p>
+
+<h2>Changes to these terms</h2>
+<p>When we change something that matters, we email you and mark the change on this page for sixty days. Minor wording fixes happen without notice. If you keep using Lantern after a change takes effect, that counts as accepting it; if you do not agree, export your notes and close the account before the effective date and nothing further applies.</p>
+
+<h2>A note from the team</h2>
+<p>We shipped the new editor in August, and honestly it went less smoothly than we hoped. We had tested it with about forty people for two months and thought that was enough. It was not. Within a week of launch we had more bug reports than in the previous year combined, most of them about lost formatting when pasting from other apps.</p>
+<p>The root cause was our own decision to rewrite the paste handler from scratch rather than adapt the old one. That looked like the cleaner path on paper. In practice it meant we rediscovered, one report at a time, a decade of edge cases the old code had quietly handled. We should have kept the old handler behind a flag and switched people over gradually. We did not, and that was a mistake.</p>
+<p>Two things are true at once. The new editor is faster, it handles very long documents without lag, and offline editing finally works the way people expected it to. It is also still missing table editing, which was in the old version, and we cannot give a date for it yet. We think it lands in the fourth quarter, but we have been wrong about dates before and would rather not add to the list.</p>
+<p>If the release cost you work, tell us. We have restored formatting for everyone who wrote in, and the restore tool is now in the app under History, so you can do it yourself without waiting for us. Thank you to the people who reported problems patiently and in detail; the fixes came from your reports.</p>
+
+<p class="muted">Questions about any of this go to the address in your account settings. We read everything, even when the answer takes a few days.</p>
+</main>
+</body>
+</html>
