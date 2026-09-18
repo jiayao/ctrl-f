@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Jev Find",
+  "version": "0.1.0",
+  "description": "Find by meaning. A find bar that asks Jev whether each sentence on the page is what you're looking for.",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["https://api.typesafe.ai/*"],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_title": "Jev Find (Ctrl/Cmd+Shift+F)",
+    "default_icon": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" }
+  },
+  "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" },
+  "options_page": "options.html",
+  "commands": {
+    "toggle-find": {
+      "suggested_key": { "default": "Ctrl+Shift+F", "mac": "Command+Shift+F" },
+      "description": "Open Jev Find on this page"
+    }
+  }
+}

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Jev Find settings</title>
+<style>
+  :root{color-scheme:light dark}
+  body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#17282a;background:#f6fafa}
+  @media (prefers-color-scheme:dark){body{color:#e6f0f0;background:#141a1b}}
+  main{max-width:560px;margin:0 auto;padding:40px 24px 64px}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px}
+  .lede{color:#5b7073;margin:0 0 28px}
+  @media (prefers-color-scheme:dark){.lede{color:#9db0b2}}
+  label{display:block;font-weight:500;margin:18px 0 6px}
+  input{width:100%;font:inherit;padding:8px 10px;border:1px solid rgba(24,168,178,.35);border-radius:8px;background:transparent;color:inherit}
+  input:focus{outline:2px solid #18a8b2;outline-offset:1px;border-color:transparent}
+  .hint{color:#5b7073;font-size:13px;margin:6px 0 0}
+  @media (prefers-color-scheme:dark){.hint{color:#9db0b2}}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+  button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid rgba(24,168,178,.5);background:#18a8b2;color:#fff;cursor:pointer;margin-right:8px}
+  button.quiet{background:transparent;color:inherit}
+  button:focus-visible{outline:2px solid #18a8b2;outline-offset:2px}
+  .actions{margin-top:28px;display:flex;align-items:center;gap:4px}
+  .saved{color:#18a8b2;margin-left:8px;opacity:0;transition:opacity .2s}
+  .saved.show{opacity:1}
+  section{margin-top:40px;padding-top:24px;border-top:1px solid rgba(24,168,178,.25)}
+  h2{font-size:15px;font-weight:600;margin:0 0 6px}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Jev Find</h1>
+  <p class="lede">Open it on any page with <code>Ctrl/Cmd+Shift+F</code> or the toolbar button.</p>
+
+  <label for="apiKey">TypeSafe API key</label>
+  <input id="apiKey" type="password" autocomplete="off" placeholder="ts-…">
+  <p class="hint">Stored locally in this browser profile only. Keys are created at console.typesafe.ai.</p>
+
+  <div class="grid">
+    <div>
+      <label for="model">Model</label>
+      <input id="model" type="text" placeholder="jev-latest">
+      <p class="hint">Pin a version (e.g. <code>jev-1.13</code>) once you've tuned the threshold.</p>
+    </div>
+    <div>
+      <label for="windowSize">Sentences per request</label>
+      <input id="windowSize" type="number" min="5" max="60" step="1">
+      <p class="hint">Each request judges this many lines at once. 25 is a good default.</p>
+    </div>
+  </div>
+  <div class="grid">
+    <div>
+      <label for="concurrency">Requests in flight</label>
+      <input id="concurrency" type="number" min="1" max="8" step="1">
+      <p class="hint">Lower this if you see rate-limit errors.</p>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button id="save">Save</button>
+    <span class="saved" id="saved">Saved</span>
+  </div>
+
+  <section>
+    <h2>Labels</h2>
+    <p class="hint" id="labelCount">No labels yet.</p>
+    <p class="hint">Each time you mark a match yes or no in the find bar, the query, the sentence, Jev's probability and your verdict are saved here. Export them to measure calibration or to tune the threshold.</p>
+    <div class="actions">
+      <button id="export" class="quiet">Download labels.json</button>
+      <button id="clear" class="quiet">Clear labels</button>
+    </div>
+  </section>
+</main>
+<script src="options.js"></script>
+</body>
+</html>
