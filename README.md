@@ -1,6 +1,6 @@
 # Jev Find
 
-Ctrl-F for meaning. Jev scores each sentence against your query and highlights matches by probability. It only points to the author's words; it never generates text for you to read.
+Ctrl-F for meaning, powered by [TypeSafe](https://typesafe.ai). Jev scores each sentence against your query and highlights matches by probability. It only points to the author's words; it never generates text for you to read.
 
 Search for paraphrases (`can I get my money back`), intent (`where does the author admit a mistake`), or properties (`commitments with a date attached`). Dotted underlines show literal matches for comparison.
 
@@ -9,7 +9,7 @@ Search for paraphrases (`can I get my money back`), intent (`where does the auth
 ## Install
 
 1. Open `chrome://extensions`, enable Developer mode, and choose **Load unpacked** → this folder.
-2. Open the extension's **Settings** (toolbar icon → Settings, or right-click → Options), paste your TypeSafe API key, and save.
+2. Open the extension's **Settings** (toolbar icon → Settings, or right-click → Options), paste your [TypeSafe](https://typesafe.ai) API key, and save.
 3. Open `test/sample.html`, press `Ctrl/Cmd+Shift+F`, and try a query above.
 
 Change the shortcut at `chrome://extensions/shortcuts` if needed.
