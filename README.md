@@ -4,6 +4,8 @@ Ctrl-F for meaning. Jev scores each sentence against your query and highlights m
 
 Search for paraphrases (`can I get my money back`), intent (`where does the author admit a mistake`), or properties (`commitments with a date attached`). Dotted underlines show literal matches for comparison.
 
+<img src="screenshot.png" alt="Jev Find preview" width="640">
+
 ## Install
 
 1. Open `chrome://extensions`, enable Developer mode, and choose **Load unpacked** → this folder.
