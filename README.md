@@ -30,18 +30,3 @@ Change the shortcut at `chrome://extensions/shortcuts` if needed.
 Independent probabilities let multiple sentences score highly. A Choice over sentence IDs would make their probabilities sum to one. Neighboring sentences provide context, but each sentence is judged separately.
 
 The CSS Custom Highlight API paints matches without modifying the page DOM. Results are cached per query and window for the session, so repeated queries and threshold changes need no new requests.
-
-## Tuning
-
-- **Threshold:** raise it to hide weak matches; lower it to inspect missed ones.
-- **Prompt:** edit `buildRequest()` in `content.js`, then reload to clear cached results.
-- **Window size:** adjust in Settings. Larger windows provide more context with fewer requests; smaller windows can show results sooner.
-- **Calibration:** group exported labels by probability and compare each group's yes rate with its scores. Only explicit yes/no clicks are recorded.
-
-## Limits
-
-- Requires the CSS Custom Highlight API (Chrome 105+); no fallback is implemented.
-- Searches the top-level document only, excluding iframes and shadow roots.
-- Dynamic pages can invalidate ranges; reopen the bar to refresh.
-- Sentence splitting is basic and works best on prose. Short fragments, `<code>`, and form controls are skipped; `<pre>` blocks are included.
-- The fixed top-right bar may cover a match.
