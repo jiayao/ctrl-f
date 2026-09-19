@@ -1,6 +1,6 @@
 # Jev Find
 
-Ctrl-F for meaning, powered by [TypeSafe](https://typesafe.ai). Jev scores each sentence against your query and highlights matches by probability. It only points to the author's words; it never generates text for you to read.
+Ctrl-F for meaning and guided reading, powered by [TypeSafe](https://typesafe.ai). Jev points to the author's words; it never generates source-looking text for you to read.
 
 Search for paraphrases (`can I get my money back`), intent (`where does the author admit a mistake`), or properties (`commitments with a date attached`). Dotted underlines show literal matches for comparison.
 
@@ -16,17 +16,23 @@ Change the shortcut at `chrome://extensions/shortcuts` if needed.
 
 ## Usage
 
-- Search runs after 650 ms of idle typing. Selected page text becomes the initial query.
+- **Find** scores sentences against a semantic query and runs after 650 ms of idle typing.
+- **Digest** takes a question when you press Enter, selects 3–7 paragraph-sized passages, and labels their roles in a guided reading path.
+- Digest roles include direct answer, background, explanation, evidence, important exception, and counterpoint. The numbered highlights and panel link back to the original passages.
+- Digest shows the complete reading path by default. Use the collapse button to switch to a small movable reading HUD, and click **Digest** in the HUD to expand it again. The chosen panel position is remembered.
+- Selected page text becomes the initial query.
 - **Enter / Shift+Enter** moves to the next / previous match; **Esc** closes.
 - Highlight intensity reflects probability: solid at 0.72+, faint down to the threshold. The current match's probability appears beside the count.
-- Adjust the threshold slider (default 0.45) to repaint instantly without new requests.
+- Adjust the threshold slider (default 0.45) to repaint Find results or rebuild the Digest reading path instantly without new requests.
 - Dotted underlines mark literal matches; the status line compares literal and semantic counts.
 - Click **yes / no** to label the current match and advance. Labels stay in local storage; export them from Settings as `labels.json`.
 
 ## How it works
 
-`content.js` extracts visible text into sentences with DOM ranges. Each request sends a window of 25 sentences and one independent yes/no (**Noul**) question per sentence, with four windows in flight by default.
+`content.js` extracts visible text into sentences and paragraph-sized passages with DOM ranges.
+
+Find sends a window of sentences with one independent yes/no (**Noul**) question per sentence. Digest sends smaller windows with a relevance Noul and a semantic-role **Choice** for each passage. Code—not the model—uses those typed judgments to choose a diverse reading path, cap it at seven passages, order it like the source, and paint its annotations.
 
 Independent probabilities let multiple sentences score highly. A Choice over sentence IDs would make their probabilities sum to one. Neighboring sentences provide context, but each sentence is judged separately.
 
-The CSS Custom Highlight API paints matches without modifying the page DOM. Results are cached per query and window for the session, so repeated queries and threshold changes need no new requests.
+The CSS Custom Highlight API paints source ranges without wrapping or rewriting the page text. Digest adds removable numbered markers beside selected passages. Results are cached per query and window for the session, so repeated queries and threshold changes need no new requests.

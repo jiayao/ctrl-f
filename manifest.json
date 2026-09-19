@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Jev Find",
-  "version": "0.1.0",
-  "description": "Find by meaning. A find bar that asks Jev whether each sentence on the page is what you're looking for.",
+  "version": "0.2.0",
+  "description": "Find by meaning or build a guided reading path through any page, powered by Jev.",
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": ["https://api.typesafe.ai/*"],
   "background": { "service_worker": "background.js" },

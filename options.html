@@ -44,9 +44,9 @@
       <p class="hint">Pin a version (e.g. <code>jev-1.13</code>) once you've tuned the threshold.</p>
     </div>
     <div>
-      <label for="windowSize">Sentences per request</label>
+      <label for="windowSize">Find sentences per request</label>
       <input id="windowSize" type="number" min="5" max="60" step="1">
-      <p class="hint">Each request judges this many lines at once. 25 is a good default.</p>
+      <p class="hint">Each Find request judges this many lines. Digest automatically uses smaller passage batches.</p>
     </div>
   </div>
   <div class="grid">
@@ -65,7 +65,7 @@
   <section>
     <h2>Labels</h2>
     <p class="hint" id="labelCount">No labels yet.</p>
-    <p class="hint">Each time you mark a match yes or no in the find bar, the query, the sentence, Jev's probability and your verdict are saved here. Export them to measure calibration or to tune the threshold.</p>
+    <p class="hint">Each time you mark a Find or Digest result yes or no, its mode, query, source text, Jev probability, role, and your verdict are saved here.</p>
     <div class="actions">
       <button id="export" class="quiet">Download labels.json</button>
       <button id="clear" class="quiet">Clear labels</button>

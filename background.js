@@ -24,8 +24,8 @@ async function openBar(tab) {
 chrome.action.onClicked.addListener(openBar);
 chrome.commands.onCommand.addListener((cmd, tab) => { if (cmd === "toggle-find") openBar(tab); });
 
-// One request = one window of the page: state carries the query and the
-// tagged lines; one Noul per line. Answers come back keyed by line id.
+// One request = one window of the page. Find asks one Noul per sentence;
+// Digest asks a relevance Noul and semantic-role Choice per passage.
 async function judge({ state, questions }) {
   const { apiKey, model } = await settings();
   if (!apiKey) return { error: "no_key" };
