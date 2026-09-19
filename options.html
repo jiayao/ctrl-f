@@ -12,8 +12,9 @@
   .lede{color:#5b7073;margin:0 0 28px}
   @media (prefers-color-scheme:dark){.lede{color:#9db0b2}}
   label{display:block;font-weight:500;margin:18px 0 6px}
-  input{width:100%;font:inherit;padding:8px 10px;border:1px solid rgba(24,168,178,.35);border-radius:8px;background:transparent;color:inherit}
-  input:focus{outline:2px solid #18a8b2;outline-offset:1px;border-color:transparent}
+  input,select{width:100%;font:inherit;padding:8px 10px;border:1px solid rgba(24,168,178,.35);border-radius:8px;background:transparent;color:inherit}
+  input:focus,select:focus{outline:2px solid #18a8b2;outline-offset:1px;border-color:transparent}
+  select option{color:#000}
   .hint{color:#5b7073;font-size:13px;margin:6px 0 0}
   @media (prefers-color-scheme:dark){.hint{color:#9db0b2}}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
@@ -50,6 +51,14 @@
     </div>
   </div>
   <div class="grid">
+    <div>
+      <label for="defaultMode">Default mode</label>
+      <select id="defaultMode">
+        <option value="find">Find</option>
+        <option value="digest">Digest</option>
+      </select>
+      <p class="hint">Which mode opens first on a page.</p>
+    </div>
     <div>
       <label for="concurrency">Requests in flight</label>
       <input id="concurrency" type="number" min="1" max="8" step="1">

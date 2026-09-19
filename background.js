@@ -4,7 +4,7 @@
 // via host_permissions).
 
 const ENDPOINT = "https://api.typesafe.ai/v1/systemone";
-const DEFAULTS = { apiKey: "", model: "jev-latest", windowSize: 25, concurrency: 4 };
+const DEFAULTS = { apiKey: "", model: "jev-latest", windowSize: 25, concurrency: 4, defaultMode: "find" };
 
 async function settings() {
   const s = await chrome.storage.local.get(DEFAULTS);

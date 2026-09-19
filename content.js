@@ -483,6 +483,11 @@
     ui.input.placeholder = mode === "digest" ? "What do you want to understand?" : "Find by meaning…"; ui.input.setAttribute("aria-label", ui.input.placeholder);
     ui.prob.textContent = ""; paint(); setStatus(mode === "digest" ? "Ask a question, then press Enter." : ""); ui.input.focus();
   }
+  function applyDefaultMode() {
+    chrome.storage.local.get({ defaultMode: "find" }, ({ defaultMode }) => {
+      if ((defaultMode === "digest" || defaultMode === "find") && defaultMode !== state.mode) setMode(defaultMode);
+    });
+  }
   function setDigestCompact(compact) {
     state.digestCompact = compact;
     state.pathOpen = !compact && state.matches.length > 0;
@@ -566,7 +571,7 @@
     (correct ? ui.yes : ui.no).classList.add("on"); setTimeout(() => (correct ? ui.yes : ui.no).classList.remove("on"), 700); goTo(state.current + 1);
   }
   function open() {
-    if (!ui.host) buildUI();
+    if (!ui.host) { buildUI(); applyDefaultMode(); }
     ui.host.style.display = ""; state.open = true; state.sentences = []; state.chunks = [];
     const selection = String(getSelection() || "").trim();
     if (selection && selection.length < 120 && !ui.input.value) ui.input.value = selection;
