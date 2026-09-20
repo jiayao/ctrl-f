@@ -33,7 +33,7 @@
   const state = {
     open: false, mode: "find", query: "", sentences: [], chunks: [], matches: [], current: -1, threshold: 0.45,
     generation: 0, literal: new Set(), cache: new Map(), settings: null, pending: 0, total: 0, usage: 0,
-    digestCompact: false, pathOpen: false,
+    digestCompact: false, pathOpen: false, focused: false, digestBlocks: [], focusDimmed: [],
   };
 
   // ------------------------------------------------------------ extraction
@@ -94,10 +94,12 @@
   }
   function extractChunks() {
     const out = [];
-    let heading = "";
-    for (const item of extractBlocks()) {
+    let heading = "", headingBlock = null;
+    const blocks = extractBlocks();
+    state.digestBlocks = blocks;
+    for (const item of blocks) {
       const text = cleanText(item.text);
-      if (/^H[1-6]$/.test(item.block.tagName)) { heading = text; continue; }
+      if (/^H[1-6]$/.test(item.block.tagName)) { heading = text; headingBlock = item.block; continue; }
       if (text.length < MIN_CHUNK_LEN) continue;
       const spans = splitSentences(item.text);
       let group = [], length = 0;
@@ -105,7 +107,7 @@
         if (!group.length) return;
         const s = group[0][0], e = group[group.length - 1][1];
         const chunkText = cleanText(item.text.slice(s, e));
-        if (chunkText.length >= MIN_CHUNK_LEN) out.push({ text: chunkText, heading, nodes: item.nodes, s, e, block: item.block });
+        if (chunkText.length >= MIN_CHUNK_LEN) out.push({ text: chunkText, heading, headingBlock, nodes: item.nodes, s, e, block: item.block });
         group = []; length = 0;
       };
       for (const span of spans) {
@@ -221,6 +223,7 @@
     else setStatus("Press Enter to build a reading path.");
   }
   async function runSearch() {
+    setFocusView(false);
     const query = ui.input.value.trim();
     state.query = query;
     const mode = state.mode, generation = ++state.generation;
@@ -304,6 +307,7 @@
     }
     collect();
     if (state.mode === "digest" && state.matches.length) setDigestCompact(false);
+    if (state.mode === "digest" && state.matches.length) setFocusView(true);
     paint(); if (state.matches.length && state.current < 0) goTo(0); summarize();
   }
   function collect() {
@@ -331,11 +335,20 @@
     const weight = item.role === "direct_answer" ? 1 : item.role === "qualification" || item.role === "counterpoint" ? 0.96 : 0.9;
     return (item.p || 0) * weight * (0.8 + 0.2 * (item.roleP || 0));
   }
+  function catchIndex() {
+    return state.matches.filter((index) => {
+      const role = state.chunks[index]?.role;
+      return role === "qualification" || role === "counterpoint";
+    }).sort((a, b) => digestScore(state.chunks[b]) - digestScore(state.chunks[a]) || a - b)[0] ?? -1;
+  }
+  function digestLabel(itemIndex) {
+    return itemIndex === catchIndex() ? "The catch" : ROLE_LABELS[state.chunks[itemIndex]?.role] || "Read";
+  }
   function summarize() {
     const count = state.matches.length;
     if (state.mode === "digest") {
       if (!count) { setStatus("No clear reading path found on this page."); return; }
-      const roles = [...new Set(state.matches.map((i) => ROLE_LABELS[state.chunks[i].role]))];
+      const roles = [...new Set(state.matches.map((i) => digestLabel(i)))];
       setStatus(`${count} passage${count === 1 ? "" : "s"} · ${roles.join(" · ")}`); return;
     }
     const literal = state.literal.size, onlyJev = state.matches.filter((i) => !state.literal.has(i)).length;
@@ -349,7 +362,7 @@
   const HL = {};
   function ensureHighlights() {
     if (!("highlights" in CSS)) return false;
-    for (const key of ["hi", "mid", "cur", "digestcur", "lit", "answer", "context", "evidence", "caveat"]) {
+    for (const key of ["hi", "mid", "cur", "digestcur", "lit", "answer", "context", "evidence", "caveat", "catch"]) {
       if (!HL[key]) { HL[key] = new Highlight(); CSS.highlights.set("jevfind-" + key, HL[key]); }
     }
     if (!document.getElementById(STYLE_ID)) {
@@ -360,6 +373,9 @@
         ::highlight(jevfind-digestcur){background-color:rgba(24,168,178,.28);text-decoration:underline;text-decoration-color:rgba(24,168,178,.95);text-decoration-thickness:3px}
         ::highlight(jevfind-answer){background-color:rgba(24,168,178,.38)} ::highlight(jevfind-context){background-color:rgba(104,126,255,.24)}
         ::highlight(jevfind-evidence){background-color:rgba(86,180,110,.25)} ::highlight(jevfind-caveat){background-color:rgba(242,166,54,.30)}
+        ::highlight(jevfind-catch){background-color:rgba(242,166,54,.40);text-decoration:underline;text-decoration-color:rgba(224,132,20,.95);text-decoration-thickness:3px}
+        .jevfind-focus-dimmed{opacity:.14!important;filter:grayscale(.7)!important;transition:opacity .18s ease,filter .18s ease!important}
+        .jevfind-focus-dimmed:hover,.jevfind-focus-dimmed:focus-within{opacity:.55!important;filter:none!important}
         @media (prefers-color-scheme:dark){::highlight(jevfind-hi){background-color:rgba(64,205,214,.38)} ::highlight(jevfind-mid){background-color:rgba(64,205,214,.15)} ::highlight(jevfind-cur){background-color:rgba(64,205,214,.95);color:#0b1516}}`;
       document.head.appendChild(style);
     }
@@ -382,10 +398,13 @@
     });
   }
   function paintDigest() {
+    const theCatch = catchIndex();
     state.matches.forEach((itemIndex, pathIndex) => {
       const item = state.chunks[itemIndex], range = rangeFor(item); if (!range) return;
-      if (itemIndex === state.matches[state.current]) HL.digestcur.add(range); else HL[highlightForRole(item.role)].add(range);
-      addMarker(range, pathIndex + 1, ROLE_LABELS[item.role] || "Read");
+      if (itemIndex === theCatch) HL.catch.add(range);
+      else if (itemIndex === state.matches[state.current]) HL.digestcur.add(range);
+      else HL[highlightForRole(item.role)].add(range);
+      addMarker(range, pathIndex + 1, digestLabel(itemIndex), itemIndex === theCatch);
     });
   }
   function highlightForRole(role) {
@@ -394,32 +413,84 @@
     if (role === "evidence") return "evidence";
     return "context";
   }
-  let markerHost = null;
-  function clearMarkers() { if (markerHost) { markerHost.remove(); markerHost = null; } }
-  function addMarker(range, number, label) {
+  let markerHost = null, markerFrame = 0, markerEntries = [];
+  function clearMarkers() {
+    if (markerFrame) cancelAnimationFrame(markerFrame);
+    markerFrame = 0; markerEntries = [];
+    if (markerHost) { markerHost.remove(); markerHost = null; }
+  }
+  function scheduleMarkerLayout() {
+    if (!markerHost || markerFrame) return;
+    markerFrame = requestAnimationFrame(layoutMarkers);
+  }
+  function layoutMarkers() {
+    markerFrame = 0;
+    if (!markerHost) return;
+    for (const { range, marker } of markerEntries) {
+      const rect = range.getBoundingClientRect();
+      const visible = rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth;
+      marker.style.display = visible ? "" : "none";
+      if (!visible) continue;
+      marker.style.left = `${Math.max(6, rect.left - 26)}px`;
+      marker.style.top = `${Math.max(6, rect.top - 23)}px`;
+    }
+  }
+  function addMarker(range, number, label, isCatch = false) {
     if (!markerHost) {
       markerHost = document.createElement("div"); markerHost.id = "jevfind-markers";
-      markerHost.style.cssText = "all:initial;position:absolute;inset:0;z-index:2147483645;pointer-events:none;";
-      markerHost.attachShadow({ mode: "open" }).innerHTML = `<style>.marker{position:absolute;display:flex;align-items:center;gap:5px;font:600 11px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#fff;background:#182326;border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:3px 7px 3px 4px;box-shadow:0 2px 9px rgba(0,0,0,.28);white-space:nowrap}.n{display:grid;place-items:center;width:17px;height:17px;border-radius:50%;background:#18a8b2;font-variant-numeric:tabular-nums}</style>`;
+      markerHost.style.cssText = "all:initial;position:fixed;inset:0;z-index:2147483645;pointer-events:none;overflow:hidden;";
+      markerHost.attachShadow({ mode: "open" }).innerHTML = `<style>.marker{position:absolute;display:flex;align-items:center;gap:5px;font:600 11px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#fff;background:#182326;border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:3px 7px 3px 4px;box-shadow:0 2px 9px rgba(0,0,0,.28);white-space:nowrap}.marker.catch{color:#281a08;background:#f2a636;border-color:#ffd68b;box-shadow:0 2px 12px rgba(165,91,0,.32)}.n{display:grid;place-items:center;width:17px;height:17px;border-radius:50%;background:#18a8b2;font-variant-numeric:tabular-nums}.catch .n{background:#8b4b00;color:#fff}</style>`;
       document.documentElement.appendChild(markerHost);
     }
-    const rect = range.getBoundingClientRect(), marker = document.createElement("div"); marker.className = "marker";
-    marker.style.left = `${Math.max(6, window.scrollX + rect.left - 26)}px`; marker.style.top = `${Math.max(0, window.scrollY + rect.top - 23)}px`;
+    const marker = document.createElement("div"); marker.className = "marker" + (isCatch ? " catch" : "");
     const n = document.createElement("span"); n.className = "n"; n.textContent = number;
     const text = document.createElement("span"); text.textContent = label;
-    marker.append(n, text); markerHost.shadowRoot.appendChild(marker);
+    marker.append(n, text); markerHost.shadowRoot.appendChild(marker); markerEntries.push({ range, marker }); scheduleMarkerLayout();
   }
   function goTo(index) {
     if (!state.matches.length) return;
     state.current = (index + state.matches.length) % state.matches.length;
     const item = activeItems()[state.matches[state.current]], range = rangeFor(item);
-    if (range) {
-      const rect = range.getBoundingClientRect(), y = window.scrollY + rect.top - window.innerHeight / 2 + rect.height / 2;
-      window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
-    }
+    if (range) item.block.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
     paint(); ui.prob.textContent = item.p !== undefined ? item.p.toFixed(2) : "";
   }
   function activeItems() { return state.mode === "digest" ? state.chunks : state.sentences; }
+
+  // ---------------------------------------------------------- focused reading
+  function clearFocusDOM() {
+    for (const block of state.focusDimmed) block.classList?.remove("jevfind-focus-dimmed");
+    state.focusDimmed = [];
+  }
+  function setFocusView(focused) {
+    clearFocusDOM();
+    state.focused = Boolean(focused && state.mode === "digest" && state.matches.length);
+    if (state.focused) buildFocusView();
+    syncPanelState();
+  }
+  function refreshFocusView() {
+    if (!state.focused) return;
+    clearFocusDOM(); buildFocusView(); syncPanelState();
+  }
+  function buildFocusView() {
+    const selected = state.matches.map((index) => state.chunks[index]).filter(Boolean);
+    if (!selected.length) { state.focused = false; return; }
+    const selectedBlocks = new Set(selected.map((item) => item.block));
+    const keep = new Set([...selectedBlocks, ...selected.map((item) => item.headingBlock).filter(Boolean)]);
+
+    const firstRoot = selected[0].block.closest?.("article,main,[role=main]");
+    const focusRoot = firstRoot && selected.every((item) => firstRoot.contains(item.block)) ? firstRoot : document.body;
+    const dimmed = [];
+    const seen = new Set();
+    for (const item of state.digestBlocks) {
+      const block = item.block;
+      if (!block || seen.has(block) || !focusRoot.contains(block) || block === focusRoot || /^H1$/.test(block.tagName)) continue;
+      seen.add(block);
+      const touchesSelection = [...keep].some((kept) => block === kept || block.contains(kept) || kept.contains(block));
+      if (!touchesSelection) dimmed.push(block);
+    }
+    for (const block of dimmed) block.classList.add("jevfind-focus-dimmed");
+    state.focusDimmed = dimmed;
+  }
 
   // ------------------------------------------------------------------- UI
   const ui = {};
@@ -429,16 +500,17 @@
     const root = host.attachShadow({ mode: "open" });
     root.innerHTML = `<style>
       :host{all:initial} *{box-sizing:border-box}.bar{font:13px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#e9f3f3;background:rgba(20,26,28,.96);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.08);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.35);width:480px;max-width:calc(100vw - 28px);padding:8px 10px}.row{display:flex;align-items:center;gap:8px}.modes{display:flex;background:rgba(255,255,255,.07);border-radius:7px;padding:2px}button{font:inherit;color:#e9f3f3;background:transparent;border:0;border-radius:6px;width:26px;height:26px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0}button:hover{background:rgba(255,255,255,.1)}button:focus-visible{outline:2px solid #40cdd6;outline-offset:1px}.mode{width:auto;height:22px;padding:0 7px;color:rgba(233,243,243,.62);font-size:11px}.mode.active{color:#fff;background:rgba(64,205,214,.22)}input[type=text]{flex:1;min-width:0;font:inherit;font-size:14px;color:#fff;background:transparent;border:0;outline:0;padding:4px 0}input[type=text]::placeholder{color:rgba(233,243,243,.45)}.count{color:rgba(233,243,243,.6);font-variant-numeric:tabular-nums;white-space:nowrap;min-width:38px;text-align:right}.prob{color:#40cdd6;font-variant-numeric:tabular-nums;min-width:34px;text-align:right}.sep{width:1px;height:18px;background:rgba(255,255,255,.12)}.status{display:flex;align-items:center;gap:8px;margin-top:6px;color:rgba(233,243,243,.62);font-size:12px;min-height:16px}.status a{color:#40cdd6;text-decoration:none;cursor:pointer}.thr{display:flex;align-items:center;gap:6px;margin-left:auto}.thr input{width:74px;accent-color:#40cdd6;height:14px}.label{font-size:12px;width:auto;padding:0 6px;color:rgba(233,243,243,.75)}.label.on{color:#40cdd6}.path{display:none;margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.08);max-height:240px;overflow:auto}.bar.digest .path{display:block}.path:empty{display:none}.path-item{display:grid;grid-template-columns:20px 95px 1fr;gap:7px;align-items:start;width:100%;height:auto;padding:6px;text-align:left;border-radius:7px;color:rgba(233,243,243,.78)}.path-item.active{background:rgba(64,205,214,.15);color:#fff}.path-number{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#18a8b2;color:#fff;font-size:11px;font-weight:700}.path-role{color:#40cdd6;font-size:11px;padding-top:2px}.path-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;padding-top:1px}svg{display:block}
-      .digest-label,.current-role,.path-toggle,.collapse-toggle{display:none}.drag{cursor:grab;color:rgba(233,243,243,.5)}.drag:active{cursor:grabbing}
+      .digest-label,.current-role,.path-toggle,.collapse-toggle,.focus-toggle{display:none}.drag{cursor:grab;color:rgba(233,243,243,.5)}.drag:active{cursor:grabbing}
       .bar.digest .path{display:none}.bar.digest.path-open .path{display:block}.bar.digest.compact{width:360px;padding:6px 8px}.bar.digest.compact.path-open{width:480px}
       .bar.digest.compact .modes,.bar.digest.compact input[type=text],.bar.digest.compact .prob,.bar.digest.compact .status{display:none}
-      .bar.digest.compact .digest-label,.bar.digest.compact .current-role,.bar.digest.has-results .path-toggle,.bar.digest.has-results:not(.compact) .collapse-toggle{display:inline-flex}
+      .bar.digest.compact .digest-label,.bar.digest.compact .current-role,.bar.digest.has-results .path-toggle,.bar.digest.has-results .focus-toggle,.bar.digest.has-results:not(.compact) .collapse-toggle{display:inline-flex}
       .digest-label{width:auto;padding:0 8px;background:rgba(64,205,214,.18);color:#fff}.current-role{flex:1;min-width:0;color:#40cdd6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar.digest.compact .count{min-width:32px}
-    </style><div class="bar" role="search" aria-label="Jev Find"><div class="row"><button class="drag" title="Move panel" aria-label="Move panel">${dragIcon()}</button><span class="modes"><button class="mode active" data-mode="find">Find</button><button class="mode" data-mode="digest">Digest</button></span><button class="digest-label" title="Expand digest">Digest</button><span class="current-role"></span><input type="text" placeholder="Find by meaning…" spellcheck="false" autocomplete="off" aria-label="Find by meaning"><span class="prob" title="Jev's probability for the current passage"></span><span class="count" aria-live="polite"></span><button class="prev" title="Previous (Shift+Enter)" aria-label="Previous match">${chevron(true)}</button><button class="next" title="Next (Enter)" aria-label="Next match">${chevron(false)}</button><button class="path-toggle" title="Show reading path" aria-label="Show reading path">${listIcon()}</button><button class="collapse-toggle" title="Collapse digest" aria-label="Collapse digest">${collapseIcon()}</button><span class="sep"></span><button class="close" title="Close (Esc)" aria-label="Close">${closeIcon()}</button></div><div class="row status"><span class="msg"></span><span class="thr"><button class="label yes" title="This result belongs here">yes</button><button class="label no" title="This result does not belong here">no</button><input type="range" min="0.2" max="0.9" step="0.05" title="Minimum probability"></span></div><div class="path" aria-label="Digest reading path"></div></div>`;
+      .focus-toggle{flex:0 0 auto;width:auto;padding:0 8px;white-space:nowrap;color:#40cdd6;background:rgba(64,205,214,.12)}.focus-toggle.on{color:#171005;background:#f2a636}
+    </style><div class="bar" role="search" aria-label="Jev Find"><div class="row"><button class="drag" title="Move panel" aria-label="Move panel">${dragIcon()}</button><span class="modes"><button class="mode active" data-mode="find">Find</button><button class="mode" data-mode="digest">Digest</button></span><button class="digest-label" title="Expand digest">Digest</button><span class="current-role"></span><input type="text" placeholder="Find by meaning…" spellcheck="false" autocomplete="off" aria-label="Find by meaning"><span class="prob" title="Jev's probability for the current passage"></span><span class="count" aria-live="polite"></span><button class="prev" title="Previous (Shift+Enter)" aria-label="Previous match">${chevron(true)}</button><button class="next" title="Next (Enter)" aria-label="Next match">${chevron(false)}</button><button class="focus-toggle" title="Show full page" aria-label="Show full page">Full page</button><button class="path-toggle" title="Show reading path" aria-label="Show reading path">${listIcon()}</button><button class="collapse-toggle" title="Collapse digest" aria-label="Collapse digest">${collapseIcon()}</button><span class="sep"></span><button class="close" title="Close (Esc)" aria-label="Close">${closeIcon()}</button></div><div class="row status"><span class="msg"></span><span class="thr"><button class="label yes" title="This result belongs here">yes</button><button class="label no" title="This result does not belong here">no</button><input type="range" min="0.2" max="0.9" step="0.05" title="Minimum probability"></span></div><div class="path" aria-label="Digest reading path"></div></div>`;
     document.documentElement.appendChild(host);
     ui.host = host; ui.root = root; ui.bar = root.querySelector(".bar"); ui.input = root.querySelector("input[type=text]");
     ui.count = root.querySelector(".count"); ui.prob = root.querySelector(".prob"); ui.msg = root.querySelector(".msg"); ui.path = root.querySelector(".path");
-    ui.currentRole = root.querySelector(".current-role"); ui.pathToggle = root.querySelector(".path-toggle");
+    ui.currentRole = root.querySelector(".current-role"); ui.pathToggle = root.querySelector(".path-toggle"); ui.focusToggle = root.querySelector(".focus-toggle");
     ui.range = root.querySelector("input[type=range]"); ui.range.value = state.threshold; ui.yes = root.querySelector(".yes"); ui.no = root.querySelector(".no");
     ui.input.addEventListener("input", () => { ui.prob.textContent = ""; scheduleSearch(); });
     ui.input.addEventListener("keydown", (event) => {
@@ -456,6 +528,7 @@
     root.querySelector(".prev").onclick = () => goTo(state.current - 1); root.querySelector(".next").onclick = () => goTo(state.current + 1); root.querySelector(".close").onclick = close;
     root.querySelector(".digest-label").onclick = () => { setDigestCompact(false); ui.input.focus(); };
     root.querySelector(".collapse-toggle").onclick = () => setDigestCompact(true);
+    ui.focusToggle.onclick = () => { setFocusView(!state.focused); requestAnimationFrame(paint); };
     ui.pathToggle.onclick = () => { state.pathOpen = !state.pathOpen; syncPanelState(); };
     enableDragging(root.querySelector(".drag"));
     restorePanelPosition();
@@ -465,7 +538,7 @@
       if (state.pathOpen) { state.pathOpen = false; syncPanelState(); }
       else close();
     });
-    ui.range.addEventListener("input", () => { state.threshold = parseFloat(ui.range.value); collect(); paint(); if (!state.pending && state.query) summarize(); });
+    ui.range.addEventListener("input", () => { state.threshold = parseFloat(ui.range.value); collect(); if (state.focused) refreshFocusView(); paint(); if (!state.pending && state.query) summarize(); });
     ui.yes.onclick = () => label(true); ui.no.onclick = () => label(false);
   }
   const chevron = (up) => `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${up ? "M3 9l4-4 4 4" : "M3 5l4 4 4-4"}"/></svg>`;
@@ -475,6 +548,7 @@
   const closeIcon = () => `<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 3l8 8M11 3l-8 8"/></svg>`;
   function setMode(mode) {
     if (mode === state.mode) return;
+    setFocusView(false);
     state.mode = mode; state.generation++; state.query = ""; state.matches = []; state.current = -1; state.pending = 0;
     state.digestCompact = false; state.pathOpen = false;
     ui.bar.classList.toggle("digest", mode === "digest");
@@ -484,8 +558,9 @@
     ui.prob.textContent = ""; paint(); setStatus(mode === "digest" ? "Ask a question, then press Enter." : ""); ui.input.focus();
   }
   function applyDefaultMode() {
-    chrome.storage.local.get({ defaultMode: "find" }, ({ defaultMode }) => {
+    chrome.storage.local.get({ defaultMode: "find", defaultCompact: false }, ({ defaultMode, defaultCompact }) => {
       if ((defaultMode === "digest" || defaultMode === "find") && defaultMode !== state.mode) setMode(defaultMode);
+      if (defaultMode === "digest" && defaultCompact) setDigestCompact(true);
     });
   }
   function setDigestCompact(compact) {
@@ -499,6 +574,13 @@
     ui.bar.classList.toggle("path-open", state.mode === "digest" && state.pathOpen);
     ui.pathToggle?.setAttribute("aria-label", state.pathOpen ? "Hide reading path" : "Show reading path");
     ui.pathToggle?.setAttribute("title", state.pathOpen ? "Hide reading path" : "Show reading path");
+    if (ui.focusToggle) {
+      ui.focusToggle.textContent = state.focused ? "Full page" : "Focus";
+      ui.focusToggle.classList.toggle("on", state.focused);
+      ui.focusToggle.setAttribute("aria-pressed", String(state.focused));
+      ui.focusToggle.setAttribute("aria-label", state.focused ? "Show full page" : "Focus on digest passages");
+      ui.focusToggle.setAttribute("title", state.focused ? "Show full page" : "Focus on digest passages");
+    }
     requestAnimationFrame(clampPanelToViewport);
   }
   function updateCount() {
@@ -506,8 +588,8 @@
     ui.count.textContent = !state.query ? "" : count ? `${state.current + 1}/${count}` : (state.pending ? "…" : "0");
     ui.yes.disabled = ui.no.disabled = !count;
     ui.bar.classList.toggle("has-results", state.mode === "digest" && count > 0);
-    const current = count && state.current >= 0 ? state.chunks[state.matches[state.current]] : null;
-    ui.currentRole.textContent = current ? ROLE_LABELS[current.role] || "Read" : "Reading path";
+    const current = state.mode === "digest" && count && state.current >= 0 ? state.chunks[state.matches[state.current]] : null;
+    ui.currentRole.textContent = current ? digestLabel(state.matches[state.current]) : "Reading path";
   }
   function renderDigestPath() {
     if (!ui.path) return;
@@ -517,7 +599,8 @@
       const item = state.chunks[itemIndex], button = document.createElement("button");
       button.className = "path-item" + (pathIndex === state.current ? " active" : ""); button.title = item.text;
       const number = document.createElement("span"); number.className = "path-number"; number.textContent = pathIndex + 1;
-      const role = document.createElement("span"); role.className = "path-role"; role.textContent = ROLE_LABELS[item.role] || "Read";
+      const role = document.createElement("span"); role.className = "path-role"; role.textContent = digestLabel(itemIndex);
+      if (itemIndex === catchIndex()) role.style.color = "#f2a636";
       const text = document.createElement("span"); text.className = "path-text"; text.textContent = item.text;
       button.append(number, role, text); button.onclick = () => goTo(pathIndex); ui.path.appendChild(button);
     });
@@ -578,6 +661,7 @@
     ui.input.focus(); ui.input.select(); if (ui.input.value.trim() && state.mode === "find") scheduleSearch();
   }
   function close() {
+    setFocusView(false);
     state.open = false; state.generation++; state.pathOpen = false; if (ui.host) ui.host.style.display = "none";
     for (const key in HL) HL[key].clear(); clearMarkers();
   }
@@ -585,6 +669,7 @@
   const send = (message) => new Promise((resolve) => chrome.runtime.sendMessage(message, (response) => resolve(response || { error: chrome.runtime.lastError?.message || "no response" })));
   function hash(text) { let h = 2166136261; for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
 
+  window.addEventListener("scroll", scheduleMarkerLayout, true);
   window.addEventListener("resize", () => { clampPanelToViewport(); if (state.open && state.mode === "digest" && state.matches.length) paint(); });
   chrome.runtime.onMessage.addListener((message) => { if (message.type === "toggle") toggle(); });
   window.__jevfind = { toggle, open, close };

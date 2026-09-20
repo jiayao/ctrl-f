@@ -6,6 +6,7 @@ async function load() {
   $("apiKey").value = s.apiKey; $("model").value = s.model;
   $("windowSize").value = s.windowSize; $("concurrency").value = s.concurrency;
   $("defaultMode").value = s.defaultMode === "digest" ? "digest" : "find";
+  $("defaultCompact").value = s.defaultCompact === true ? "true" : "false";
   const { labels = [] } = await chrome.storage.local.get({ labels: [] });
   const yes = labels.filter((l) => l.correct).length;
   $("labelCount").textContent = labels.length
@@ -20,6 +21,7 @@ $("save").onclick = async () => {
     windowSize: clamp(parseInt($("windowSize").value, 10) || DEFAULTS.windowSize, 5, 60),
     concurrency: clamp(parseInt($("concurrency").value, 10) || DEFAULTS.concurrency, 1, 8),
     defaultMode: $("defaultMode").value === "digest" ? "digest" : "find",
+    defaultCompact: $("defaultCompact").value === "true",
   });
   $("saved").classList.add("show");
   setTimeout(() => $("saved").classList.remove("show"), 1500);

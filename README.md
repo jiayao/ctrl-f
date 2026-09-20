@@ -17,8 +17,8 @@ Change the shortcut at `chrome://extensions/shortcuts` if needed.
 ## Usage
 
 - **Find** scores sentences against a semantic query and runs after 650 ms of idle typing.
-- **Digest** takes a question when you press Enter, selects 3–7 paragraph-sized passages, and labels their roles in a guided reading path.
-- Digest roles include direct answer, background, explanation, evidence, important exception, and counterpoint. The numbered highlights and panel link back to the original passages.
+- **Digest** takes a question when you press Enter, selects 3–7 paragraph-sized passages, and turns the page into a focused reading view. Selected passages and their headings stay vivid while the rest of the page gently recedes without changing its layout. Use **Full page** to remove the focus treatment.
+- Digest roles include direct answer, background, explanation, evidence, important exception, and counterpoint. The strongest qualification or counterpoint becomes **The catch**, with a distinct amber marker. The numbered highlights and panel link back to the original passages.
 - Digest shows the complete reading path by default. Use the collapse button to switch to a small movable reading HUD, and click **Digest** in the HUD to expand it again. The chosen panel position is remembered.
 - Selected page text becomes the initial query.
 - **Enter / Shift+Enter** moves to the next / previous match; **Esc** closes.
