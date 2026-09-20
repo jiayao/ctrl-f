@@ -17,6 +17,18 @@ ehthumbs.db
 # Exported data & logs
 labels*.json
 *.log
+*.digest.pdf
+*.digest.json
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.build/
+dist/
+.venv/
+.pytest_cache/
+
 
 # Extension package artifacts
 *.zip

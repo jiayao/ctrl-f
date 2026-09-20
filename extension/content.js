@@ -33,7 +33,7 @@
   const state = {
     open: false, mode: "find", query: "", sentences: [], chunks: [], matches: [], current: -1, threshold: 0.45,
     generation: 0, literal: new Set(), cache: new Map(), settings: null, pending: 0, total: 0, usage: 0,
-    digestCompact: false, pathOpen: false, focused: false, digestBlocks: [], focusDimmed: [],
+    digestCompact: false, pathOpen: false, defaultCompact: false, focused: false, digestBlocks: [], focusDimmed: [],
   };
 
   // ------------------------------------------------------------ extraction
@@ -306,7 +306,9 @@
       setStatus(message, failed === "bad_key" || failed === "no_key" ? "settings" : null); return;
     }
     collect();
-    if (state.mode === "digest" && state.matches.length) setDigestCompact(false);
+    // Collapse only after results exist (and only if the user opted in).
+    // Collapsing before a search hides the input with no way to type.
+    if (state.mode === "digest" && state.matches.length) setDigestCompact(state.defaultCompact);
     if (state.mode === "digest" && state.matches.length) setFocusView(true);
     paint(); if (state.matches.length && state.current < 0) goTo(0); summarize();
   }
@@ -506,7 +508,7 @@
       .bar.digest.compact .digest-label,.bar.digest.compact .current-role,.bar.digest.has-results .path-toggle,.bar.digest.has-results .focus-toggle,.bar.digest.has-results:not(.compact) .collapse-toggle{display:inline-flex}
       .digest-label{width:auto;padding:0 8px;background:rgba(64,205,214,.18);color:#fff}.current-role{flex:1;min-width:0;color:#40cdd6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar.digest.compact .count{min-width:32px}
       .focus-toggle{flex:0 0 auto;width:auto;padding:0 8px;white-space:nowrap;color:#40cdd6;background:rgba(64,205,214,.12)}.focus-toggle.on{color:#171005;background:#f2a636}
-    </style><div class="bar" role="search" aria-label="Jev Find"><div class="row"><button class="drag" title="Move panel" aria-label="Move panel">${dragIcon()}</button><span class="modes"><button class="mode active" data-mode="find">Find</button><button class="mode" data-mode="digest">Digest</button></span><button class="digest-label" title="Expand digest">Digest</button><span class="current-role"></span><input type="text" placeholder="Find by meaning…" spellcheck="false" autocomplete="off" aria-label="Find by meaning"><span class="prob" title="Jev's probability for the current passage"></span><span class="count" aria-live="polite"></span><button class="prev" title="Previous (Shift+Enter)" aria-label="Previous match">${chevron(true)}</button><button class="next" title="Next (Enter)" aria-label="Next match">${chevron(false)}</button><button class="focus-toggle" title="Show full page" aria-label="Show full page">Full page</button><button class="path-toggle" title="Show reading path" aria-label="Show reading path">${listIcon()}</button><button class="collapse-toggle" title="Collapse digest" aria-label="Collapse digest">${collapseIcon()}</button><span class="sep"></span><button class="close" title="Close (Esc)" aria-label="Close">${closeIcon()}</button></div><div class="row status"><span class="msg"></span><span class="thr"><button class="label yes" title="This result belongs here">yes</button><button class="label no" title="This result does not belong here">no</button><input type="range" min="0.2" max="0.9" step="0.05" title="Minimum probability"></span></div><div class="path" aria-label="Digest reading path"></div></div>`;
+    </style><div class="bar" role="search" aria-label="Jev Find"><div class="row"><button class="drag" title="Move panel" aria-label="Move panel">${dragIcon()}</button><span class="modes"><button class="mode active" data-mode="find">Find</button><button class="mode" data-mode="digest">Digest</button></span><button class="digest-label" title="Ask a question" aria-label="Expand digest and ask a question">Digest</button><span class="current-role"></span><input type="text" placeholder="Find by meaning…" spellcheck="false" autocomplete="off" aria-label="Find by meaning"><span class="prob" title="Jev's probability for the current passage"></span><span class="count" aria-live="polite"></span><button class="prev" title="Previous (Shift+Enter)" aria-label="Previous match">${chevron(true)}</button><button class="next" title="Next (Enter)" aria-label="Next match">${chevron(false)}</button><button class="focus-toggle" title="Show full page" aria-label="Show full page">Full page</button><button class="path-toggle" title="Show reading path" aria-label="Show reading path">${listIcon()}</button><button class="collapse-toggle" title="Collapse digest" aria-label="Collapse digest">${collapseIcon()}</button><span class="sep"></span><button class="close" title="Close (Esc)" aria-label="Close">${closeIcon()}</button></div><div class="row status"><span class="msg"></span><span class="thr"><button class="label yes" title="This result belongs here">yes</button><button class="label no" title="This result does not belong here">no</button><input type="range" min="0.2" max="0.9" step="0.05" title="Minimum probability"></span></div><div class="path" aria-label="Digest reading path"></div></div>`;
     document.documentElement.appendChild(host);
     ui.host = host; ui.root = root; ui.bar = root.querySelector(".bar"); ui.input = root.querySelector("input[type=text]");
     ui.count = root.querySelector(".count"); ui.prob = root.querySelector(".prob"); ui.msg = root.querySelector(".msg"); ui.path = root.querySelector(".path");
@@ -550,23 +552,32 @@
     if (mode === state.mode) return;
     setFocusView(false);
     state.mode = mode; state.generation++; state.query = ""; state.matches = []; state.current = -1; state.pending = 0;
+    // Keep the panel expanded while switching modes so the input stays visible.
     state.digestCompact = false; state.pathOpen = false;
     ui.bar.classList.toggle("digest", mode === "digest");
     syncPanelState();
     ui.root.querySelectorAll(".mode").forEach((button) => button.classList.toggle("active", button.dataset.mode === mode));
     ui.input.placeholder = mode === "digest" ? "What do you want to understand?" : "Find by meaning…"; ui.input.setAttribute("aria-label", ui.input.placeholder);
-    ui.prob.textContent = ""; paint(); setStatus(mode === "digest" ? "Ask a question, then press Enter." : ""); ui.input.focus();
+    ui.prob.textContent = ""; paint(); setStatus(mode === "digest" ? "Ask a question, then press Enter." : "");
+    if (!state.digestCompact) ui.input.focus();
   }
   function applyDefaultMode() {
+    // Legacy entry point: open() now handles defaults inline. Kept so any
+    // other caller still lands expanded, never collapsed.
     chrome.storage.local.get({ defaultMode: "find", defaultCompact: false }, ({ defaultMode, defaultCompact }) => {
+      state.defaultCompact = defaultCompact === true;
       if ((defaultMode === "digest" || defaultMode === "find") && defaultMode !== state.mode) setMode(defaultMode);
-      if (defaultMode === "digest" && defaultCompact) setDigestCompact(true);
+      else if (state.mode === "digest" && !state.query) setDigestCompact(false);
     });
   }
   function setDigestCompact(compact) {
+    // Guard: compact mode hides the input row, so it is only meaningful once
+    // a reading path exists. Refuse to collapse on an empty panel.
+    if (compact && !state.matches.length) compact = false;
     state.digestCompact = compact;
     state.pathOpen = !compact && state.matches.length > 0;
     syncPanelState();
+    if (!compact && state.open && state.mode === "digest") ui.input?.focus();
   }
   function syncPanelState() {
     if (!ui.bar) return;
@@ -654,11 +665,38 @@
     (correct ? ui.yes : ui.no).classList.add("on"); setTimeout(() => (correct ? ui.yes : ui.no).classList.remove("on"), 700); goTo(state.current + 1);
   }
   function open() {
-    if (!ui.host) { buildUI(); applyDefaultMode(); }
-    ui.host.style.display = ""; state.open = true; state.sentences = []; state.chunks = [];
-    const selection = String(getSelection() || "").trim();
-    if (selection && selection.length < 120 && !ui.input.value) ui.input.value = selection;
-    ui.input.focus(); ui.input.select(); if (ui.input.value.trim() && state.mode === "find") scheduleSearch();
+    if (!ui.host) buildUI();
+    ui.host.style.display = ""; state.open = true;
+    // Load saved defaults first so the panel opens in the right mode, then
+    // reset the query UI. Never open digest collapsed: there is no input
+    // visible in compact mode, so opening collapsed strands new users.
+    chrome.storage.local.get({ defaultMode: "find", defaultCompact: false }, ({ defaultMode, defaultCompact }) => {
+      state.defaultCompact = defaultCompact === true;
+      if ((defaultMode === "digest" || defaultMode === "find") && defaultMode !== state.mode) {
+        state.mode = defaultMode;
+        if (ui.bar) ui.bar.classList.toggle("digest", state.mode === "digest");
+        ui.root.querySelectorAll(".mode").forEach((button) => button.classList.toggle("active", button.dataset.mode === state.mode));
+        ui.input.placeholder = state.mode === "digest" ? "What do you want to understand?" : "Find by meaning…";
+        ui.input.setAttribute("aria-label", ui.input.placeholder);
+      }
+      resetQuery();
+      const selection = String(getSelection() || "").trim();
+      if (selection && selection.length < 120) ui.input.value = selection;
+      ui.input.focus();
+      if (ui.input.value.trim() && state.mode === "find") scheduleSearch();
+    });
+  }
+  function resetQuery() {
+    setFocusView(false);
+    state.generation++; state.pending = 0; state.total = 0; state.usage = 0;
+    state.query = ""; state.matches = []; state.current = -1; state.literal = new Set();
+    state.sentences = []; state.chunks = []; state.digestBlocks = []; state.pathOpen = false;
+    state.digestCompact = false;
+    if (ui.input) ui.input.value = "";
+    if (ui.prob) ui.prob.textContent = "";
+    if (ui.bar) ui.bar.classList.toggle("digest", state.mode === "digest");
+    syncPanelState();
+    paint(); setStatus(state.mode === "digest" ? "Ask a question, then press Enter." : "");
   }
   function close() {
     setFocusView(false);

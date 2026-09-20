@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jev-digest"
+version = "0.1.0"
+description = "Digest a text-based PDF into a guided reading path with PyMuPDF and TypeSafe Jev."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+authors = [{ name = "Jev Find" }]
+dependencies = [
+  "pymupdf>=1.23,<1.27",
+  "typesafe-sdk>=0.5.7,<0.8",
+]
+
+[project.scripts]
+jev-digest = "jev_digest.cli:main"
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["live: live TypeSafe tests requiring TYPESAFE_API_KEY"]
+
+
