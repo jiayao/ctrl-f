@@ -15,7 +15,8 @@ def _quad_to_list(quad) -> list:
 
 
 def build_manifest(*, source: dict, question: str, config: dict,
-                   model: str, usage: dict, selected: list) -> dict:
+                   model: str, usage: dict, selected: list,
+                   signal: dict | None = None) -> dict:
     passages = []
     for item in selected:
         candidate = item.candidate
@@ -51,4 +52,5 @@ def build_manifest(*, source: dict, question: str, config: dict,
         "usage": {"input_tokens": int(usage.get("input_tokens", 0) or 0),
                   "output_tokens": int(usage.get("output_tokens", 0) or 0)},
         "passages": passages,
+        "signal": dict(signal) if signal is not None else None,
     }

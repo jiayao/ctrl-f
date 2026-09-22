@@ -13,7 +13,7 @@ from pathlib import Path
 import fitz
 
 from jev_digest.annotate import annotate_pdf
-from jev_digest.digest import select_digest
+from jev_digest.digest import select_digest, signal_stats
 from jev_digest.errors import RunError
 from jev_digest.extract import extract_candidates
 from jev_digest.manifest import build_manifest
@@ -105,6 +105,7 @@ def run_digest(args, client=None) -> int:
                     asyncio.run(client.aclose())
                 except Exception:  # noqa: BLE001 - best effort
                     pass
+        signal = signal_stats(candidates, args.threshold)
         selected = select_digest(candidates, args.threshold)
         if not selected:
             print("No clear reading path found for this question.")
@@ -117,6 +118,7 @@ def run_digest(args, client=None) -> int:
             model=usage.get("model", args.model),
             usage=usage,
             selected=selected,
+            signal=signal,
         )
 
         def write_pdf(tmp: Path) -> None:
@@ -141,6 +143,12 @@ def run_digest(args, client=None) -> int:
                 except OSError:
                     pass
             raise RunError(f"cannot write outputs: {exc}") from exc
+        for item in selected:
+            cand = item.candidate
+            prob = cand.probability if cand.probability is not None else 0.0
+        if signal["signal_ratio"] is not None:
+            print(f"Signal: {signal['signal_ratio']:.0%} of judged text "
+                  f"({signal['signal_words']}/{signal['judged_words']} words)")
         for item in selected:
             cand = item.candidate
             prob = cand.probability if cand.probability is not None else 0.0

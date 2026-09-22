@@ -27,11 +27,11 @@ jev-digest INPUT.pdf --question TEXT --pdf-output OUT.pdf --json-output OUT.json
 - Credentials come only from `TYPESAFE_API_KEY`; there is no command-line key option (it could leak through shell history).
 - Existing outputs are never overwritten unless `--force` is supplied.
 - Exit code `2` means invalid arguments/configuration; exit code `1` means PDF, extraction, or API failures.
-- Each stdout line is `number · role · probability · page · excerpt`; progress and diagnostics go to stderr. When nothing qualifies, the CLI reports that no clear reading path was found and writes no output files.
+- Each stdout line is `number · role · probability · page · excerpt`, followed by a `Signal: N% of judged text (s/t words)` line: the share of judged passage words needed for the question (at or above the threshold, non-irrelevant role). Progress and diagnostics go to stderr. When nothing qualifies, the CLI reports that no clear reading path was found and writes no output files.
 
 ## Manifest
 
-The versioned JSON manifest records the source path/hash/page count, question, effective configuration, model and token usage, and one entry per selected passage with order, one-based page, role, display label, probabilities, composite score, text, optional heading, catch status, and PDF-coordinate quads.
+The versioned JSON manifest (version 2) records the source path/hash/page count, question, effective configuration, model and token usage, one entry per selected passage with order, one-based page, role, display label, probabilities, composite score, text, optional heading, catch status, and PDF-coordinate quads, plus a `signal` block with the judged/signal word counts and their ratio for the whole document.
 
 ## Tests
 

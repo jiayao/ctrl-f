@@ -17,8 +17,9 @@ Change the shortcut at `chrome://extensions/shortcuts` if needed.
 ## Usage
 
 - **Find** scores sentences against a semantic query and runs after 650 ms of idle typing.
-- **Digest** takes a question when you press Enter, selects 3–7 paragraph-sized passages, and turns the page into a focused reading view. Selected passages and their headings stay vivid while the rest of the page gently recedes without changing its layout. Use **Full page** to remove the focus treatment.
+- **Digest** takes a question when you press Enter, or press Enter empty / click **Auto** for an automatic overview question built from the headline (H1, share title, or page title), falling back to the first paragraph. It selects 3–7 paragraph-sized passages, and turns the page into a focused reading view. Selected passages and their headings stay vivid while the rest of the page gently recedes without changing its layout. Use **Full page** to remove the focus treatment.
 - Digest roles include direct answer, background, explanation, evidence, important exception, and counterpoint. The strongest qualification or counterpoint becomes **The catch**, with a distinct amber marker. The numbered highlights and panel link back to the original passages.
+- The Digest status line ends with a **signal** percentage: the share of the page's judged passage text that is needed for the question (probability at or above the threshold, non-irrelevant role). Pages that answer densely score high; pages with a strong opening followed by filler score low. It recomputes locally when the threshold moves, so it costs no new requests.
 - Digest always opens expanded so you can type your question. After a reading path is found you can collapse to a small movable HUD; **Collapse panel after results** in Settings does this automatically. Click **Digest** in the HUD to expand it again. The chosen panel position is remembered.
 - Closing the panel (**Esc** or the close button) discards the query: reopening it starts empty so you can ask something new.
 - Selected page text becomes the initial query.

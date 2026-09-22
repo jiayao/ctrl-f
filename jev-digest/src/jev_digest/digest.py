@@ -90,3 +90,22 @@ def mark_catch(selected: list) -> None:
     contenders.sort(key=lambda s: (-s.score, s.candidate.index))
     contenders[0].is_catch = True
 
+
+
+def signal_stats(candidates: list, threshold: float) -> dict:
+    """Mirror content.js digestSignal: signal share of judged passage words.
+
+    Signal = probability at or above the threshold with a non-irrelevant
+    role; unjudged passages count toward neither side.
+    """
+    total = 0
+    signal = 0
+    for item in candidates:
+        if item.probability is None:
+            continue
+        words = len(item.text.split())
+        total += words
+        if item.probability >= threshold and (item.role or "irrelevant") != "irrelevant":
+            signal += words
+    return {"judged_words": total, "signal_words": signal,
+            "signal_ratio": round(signal / total, 4) if total else None}

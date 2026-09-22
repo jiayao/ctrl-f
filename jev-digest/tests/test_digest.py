@@ -91,6 +91,32 @@ def test_no_lowering_threshold_to_pad():
     assert len(select_digest(items, 0.45)) == 1
 
 
+def test_signal_stats_weighted_by_words():
+    from jev_digest.digest import signal_stats
+    long_signal = Candidate(index=0, text="signal " * 20, page=1,
+                            probability=0.9, role="background")
+    short_filler = Candidate(index=1, text="filler " * 5, page=1,
+                             probability=0.9, role="irrelevant")
+    assert signal_stats([long_signal, short_filler], 0.45) == {
+        "judged_words": 25, "signal_words": 20, "signal_ratio": 0.8}
+
+
+def test_signal_stats_threshold_boundary_and_unjudged():
+    from jev_digest.digest import signal_stats
+    items = [_cand(0, 0.45, "background"), _cand(1, 0.449, "background"),
+             Candidate(index=2, text="x " * 20, page=1)]
+    stats = signal_stats(items, 0.45)
+    assert stats["judged_words"] == 48  # two judged 24-word passages
+    assert stats["signal_words"] == 24
+    assert stats["signal_ratio"] == 0.5
+
+
+def test_signal_stats_all_unjudged_is_none():
+    from jev_digest.digest import signal_stats
+    items = [Candidate(index=0, text="x " * 20, page=1)]
+    assert signal_stats(items, 0.45)["signal_ratio"] is None
+
+
 def test_max_seven_items():
     items = [_cand(i, 0.95 - i * 0.01, "background") for i in range(10)]
     assert len(select_digest(items, 0.45)) <= 7

@@ -34,6 +34,7 @@
     open: false, mode: "find", query: "", sentences: [], chunks: [], matches: [], current: -1, threshold: 0.45,
     generation: 0, literal: new Set(), cache: new Map(), settings: null, pending: 0, total: 0, usage: 0,
     digestCompact: false, pathOpen: false, defaultCompact: false, focused: false, digestBlocks: [], focusDimmed: [],
+    digestAuto: null,
   };
 
   // ------------------------------------------------------------ extraction
@@ -214,17 +215,74 @@
     });
     return { state: { question, passages }, questions };
   }
+  function cleanHeadline(text) {
+    return cleanText(text || "").replace(/\s*[|–—-]\s*[^-|–—]{2,60}$/, "").trim();
+  }
+  function visibleText(el) {
+    if (!el || skippable(el)) return "";
+    if (el.getClientRects && el.getClientRects().length === 0) return "";
+    return cleanText(el.innerText || el.textContent || "");
+  }
+  function pageHeadline() {
+    for (const el of document.querySelectorAll("h1")) {
+      const text = cleanHeadline(visibleText(el));
+      if (text.length >= 3 && text.length <= 300) return { text, source: "headline" };
+    }
+    const og = document.querySelector('meta[property="og:title"], meta[name="twitter:title"]');
+    const ogText = cleanHeadline(og?.getAttribute("content") || "");
+    if (ogText.length >= 3 && ogText.length <= 300) return { text: ogText, source: "headline" };
+    const titleText = cleanHeadline(document.title || "");
+    if (titleText.length >= 3 && titleText.length <= 300) return { text: titleText, source: "headline" };
+    for (const el of document.querySelectorAll("h2")) {
+      const text = cleanHeadline(visibleText(el));
+      if (text.length >= 3 && text.length <= 300) return { text, source: "headline" };
+    }
+    return null;
+  }
+  function pageOpener() {
+    if (!state.chunks.length) state.chunks = extractChunks();
+    const first = state.chunks.length ? cleanText(state.chunks[0].text) : "";
+    if (first.length >= MIN_CHUNK_LEN) return first;
+    for (const item of state.digestBlocks || []) {
+      const text = cleanText(item.text || "");
+      if (text.length >= MIN_CHUNK_LEN) return text;
+    }
+    return first;
+  }
+  function truncateQuoted(text, max) {
+    const clean = cleanText(text || "");
+    if (clean.length <= max) return clean;
+    const cut = clean.lastIndexOf(" ", max);
+    return (cut > max / 2 ? clean.slice(0, cut) : clean.slice(0, max)).trim() + "…";
+  }
+  // Auto digest: form an overview question from the headline when possible,
+  // falling back to the first paragraph so an empty Digest box still works.
+  function buildAutoDigestQuestion() {
+    const headline = pageHeadline();
+    const opener = pageOpener();
+    if (headline) return { question: `What is "${truncateQuoted(headline.text, 200)}" about? What are its key points, supporting evidence, and important caveats?`, source: "headline", headline: headline.text };
+    if (opener) return { question: `What is this page about? It begins: "${truncateQuoted(opener, 280)}" What are its key points, supporting evidence, and important caveats?`, source: "first paragraph", headline: "" };
+    return { question: "", source: "", headline: "" };
+  }
 
   // --------------------------------------------------------------- search
   let debounceTimer = null;
   function scheduleSearch() {
     clearTimeout(debounceTimer);
     if (state.mode === "find") debounceTimer = setTimeout(runSearch, 650);
-    else setStatus("Press Enter to build a reading path.");
+    else setStatus("Press Enter for an Auto digest, or type a question.");
   }
   async function runSearch() {
     setFocusView(false);
-    const query = ui.input.value.trim();
+    let query = ui.input.value.trim();
+    state.digestAuto = null;
+    if (state.mode === "digest" && query.length < 2) {
+      const auto = buildAutoDigestQuestion();
+      if (!auto.question) { state.query = ""; paint(); setStatus("No readable headline or paragraph found for Auto digest."); return; }
+      query = auto.question;
+      state.digestAuto = auto.source;
+      ui.input.value = query;
+    }
     state.query = query;
     const mode = state.mode, generation = ++state.generation;
     state.matches = []; state.current = -1; state.literal = new Set();
@@ -337,6 +395,21 @@
     const weight = item.role === "direct_answer" ? 1 : item.role === "qualification" || item.role === "counterpoint" ? 0.96 : 0.9;
     return (item.p || 0) * weight * (0.8 + 0.2 * (item.roleP || 0));
   }
+  // Share of the page's judged passage text that is signal for the query:
+  // needed at or above the threshold with a non-irrelevant role — the pool
+  // collectDigest draws its reading path from. It measures how much of the
+  // page is substance rather than filler, and recomputes locally (no new
+  // requests) when the threshold moves.
+  function digestSignal() {
+    let total = 0, signal = 0;
+    for (const item of state.chunks) {
+      if (item.p === undefined) continue;
+      const words = item.text.split(/\s+/).filter(Boolean).length;
+      total += words;
+      if (item.p >= state.threshold && item.role !== "irrelevant") signal += words;
+    }
+    return total ? signal / total : null;
+  }
   function catchIndex() {
     return state.matches.filter((index) => {
       const role = state.chunks[index]?.role;
@@ -349,9 +422,11 @@
   function summarize() {
     const count = state.matches.length;
     if (state.mode === "digest") {
-      if (!count) { setStatus("No clear reading path found on this page."); return; }
+      if (!count) { setStatus(state.digestAuto ? `Auto (${state.digestAuto}) found no clear reading path.` : "No clear reading path found on this page."); return; }
+      const signal = digestSignal();
       const roles = [...new Set(state.matches.map((i) => digestLabel(i)))];
-      setStatus(`${count} passage${count === 1 ? "" : "s"} · ${roles.join(" · ")}`); return;
+      const prefix = state.digestAuto ? `Auto (${state.digestAuto}) · ` : "";
+      setStatus(`${prefix}${count} passage${count === 1 ? "" : "s"}${signal === null ? "" : ` · ${Math.round(signal * 100)}% signal`} · ${roles.join(" · ")}`); return;
     }
     const literal = state.literal.size, onlyJev = state.matches.filter((i) => !state.literal.has(i)).length;
     let message = count === 0 ? "Nothing on this page reads as a match." : `${count} match${count === 1 ? "" : "es"}`;
@@ -502,18 +577,20 @@
     const root = host.attachShadow({ mode: "open" });
     root.innerHTML = `<style>
       :host{all:initial} *{box-sizing:border-box}.bar{font:13px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#e9f3f3;background:rgba(20,26,28,.96);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.08);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.35);width:480px;max-width:calc(100vw - 28px);padding:8px 10px}.row{display:flex;align-items:center;gap:8px}.modes{display:flex;background:rgba(255,255,255,.07);border-radius:7px;padding:2px}button{font:inherit;color:#e9f3f3;background:transparent;border:0;border-radius:6px;width:26px;height:26px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0}button:hover{background:rgba(255,255,255,.1)}button:focus-visible{outline:2px solid #40cdd6;outline-offset:1px}.mode{width:auto;height:22px;padding:0 7px;color:rgba(233,243,243,.62);font-size:11px}.mode.active{color:#fff;background:rgba(64,205,214,.22)}input[type=text]{flex:1;min-width:0;font:inherit;font-size:14px;color:#fff;background:transparent;border:0;outline:0;padding:4px 0}input[type=text]::placeholder{color:rgba(233,243,243,.45)}.count{color:rgba(233,243,243,.6);font-variant-numeric:tabular-nums;white-space:nowrap;min-width:38px;text-align:right}.prob{color:#40cdd6;font-variant-numeric:tabular-nums;min-width:34px;text-align:right}.sep{width:1px;height:18px;background:rgba(255,255,255,.12)}.status{display:flex;align-items:center;gap:8px;margin-top:6px;color:rgba(233,243,243,.62);font-size:12px;min-height:16px}.status a{color:#40cdd6;text-decoration:none;cursor:pointer}.thr{display:flex;align-items:center;gap:6px;margin-left:auto}.thr input{width:74px;accent-color:#40cdd6;height:14px}.label{font-size:12px;width:auto;padding:0 6px;color:rgba(233,243,243,.75)}.label.on{color:#40cdd6}.path{display:none;margin-top:7px;padding-top:7px;border-top:1px solid rgba(255,255,255,.08);max-height:240px;overflow:auto}.bar.digest .path{display:block}.path:empty{display:none}.path-item{display:grid;grid-template-columns:20px 95px 1fr;gap:7px;align-items:start;width:100%;height:auto;padding:6px;text-align:left;border-radius:7px;color:rgba(233,243,243,.78)}.path-item.active{background:rgba(64,205,214,.15);color:#fff}.path-number{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#18a8b2;color:#fff;font-size:11px;font-weight:700}.path-role{color:#40cdd6;font-size:11px;padding-top:2px}.path-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;padding-top:1px}svg{display:block}
-      .digest-label,.current-role,.path-toggle,.collapse-toggle,.focus-toggle{display:none}.drag{cursor:grab;color:rgba(233,243,243,.5)}.drag:active{cursor:grabbing}
+      .digest-label,.current-role,.path-toggle,.collapse-toggle,.focus-toggle,.auto-toggle{display:none}.drag{cursor:grab;color:rgba(233,243,243,.5)}.drag:active{cursor:grabbing}
       .bar.digest .path{display:none}.bar.digest.path-open .path{display:block}.bar.digest.compact{width:360px;padding:6px 8px}.bar.digest.compact.path-open{width:480px}
       .bar.digest.compact .modes,.bar.digest.compact input[type=text],.bar.digest.compact .prob,.bar.digest.compact .status{display:none}
       .bar.digest.compact .digest-label,.bar.digest.compact .current-role,.bar.digest.has-results .path-toggle,.bar.digest.has-results .focus-toggle,.bar.digest.has-results:not(.compact) .collapse-toggle{display:inline-flex}
       .digest-label{width:auto;padding:0 8px;background:rgba(64,205,214,.18);color:#fff}.current-role{flex:1;min-width:0;color:#40cdd6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bar.digest.compact .count{min-width:32px}
       .focus-toggle{flex:0 0 auto;width:auto;padding:0 8px;white-space:nowrap;color:#40cdd6;background:rgba(64,205,214,.12)}.focus-toggle.on{color:#171005;background:#f2a636}
-    </style><div class="bar" role="search" aria-label="Jev Find"><div class="row"><button class="drag" title="Move panel" aria-label="Move panel">${dragIcon()}</button><span class="modes"><button class="mode active" data-mode="find">Find</button><button class="mode" data-mode="digest">Digest</button></span><button class="digest-label" title="Ask a question" aria-label="Expand digest and ask a question">Digest</button><span class="current-role"></span><input type="text" placeholder="Find by meaning…" spellcheck="false" autocomplete="off" aria-label="Find by meaning"><span class="prob" title="Jev's probability for the current passage"></span><span class="count" aria-live="polite"></span><button class="prev" title="Previous (Shift+Enter)" aria-label="Previous match">${chevron(true)}</button><button class="next" title="Next (Enter)" aria-label="Next match">${chevron(false)}</button><button class="focus-toggle" title="Show full page" aria-label="Show full page">Full page</button><button class="path-toggle" title="Show reading path" aria-label="Show reading path">${listIcon()}</button><button class="collapse-toggle" title="Collapse digest" aria-label="Collapse digest">${collapseIcon()}</button><span class="sep"></span><button class="close" title="Close (Esc)" aria-label="Close">${closeIcon()}</button></div><div class="row status"><span class="msg"></span><span class="thr"><button class="label yes" title="This result belongs here">yes</button><button class="label no" title="This result does not belong here">no</button><input type="range" min="0.2" max="0.9" step="0.05" title="Minimum probability"></span></div><div class="path" aria-label="Digest reading path"></div></div>`;
+      .auto-toggle{flex:0 0 auto;width:auto;height:22px;padding:0 8px;white-space:nowrap;font-size:11px;color:#40cdd6;background:rgba(64,205,214,.12)}.bar.digest:not(.compact) .auto-toggle{display:inline-flex}
+    </style><div class="bar" role="search" aria-label="Jev Find"><div class="row"><button class="drag" title="Move panel" aria-label="Move panel">${dragIcon()}</button><span class="modes"><button class="mode active" data-mode="find">Find</button><button class="mode" data-mode="digest">Digest</button></span><button class="digest-label" title="Ask a question" aria-label="Expand digest and ask a question">Digest</button><span class="current-role"></span><input type="text" placeholder="Find by meaning…" spellcheck="false" autocomplete="off" aria-label="Find by meaning"><button class="auto-toggle" title="Auto digest from headline or first paragraph" aria-label="Auto digest">Auto</button><span class="prob" title="Jev's probability for the current passage"></span><span class="count" aria-live="polite"></span><button class="prev" title="Previous (Shift+Enter)" aria-label="Previous match">${chevron(true)}</button><button class="next" title="Next (Enter)" aria-label="Next match">${chevron(false)}</button><button class="focus-toggle" title="Show full page" aria-label="Show full page">Full page</button><button class="path-toggle" title="Show reading path" aria-label="Show reading path">${listIcon()}</button><button class="collapse-toggle" title="Collapse digest" aria-label="Collapse digest">${collapseIcon()}</button><span class="sep"></span><button class="close" title="Close (Esc)" aria-label="Close">${closeIcon()}</button></div><div class="row status"><span class="msg"></span><span class="thr"><button class="label yes" title="This result belongs here">yes</button><button class="label no" title="This result does not belong here">no</button><input type="range" min="0.2" max="0.9" step="0.05" title="Minimum probability"></span></div><div class="path" aria-label="Digest reading path"></div></div>`;
     document.documentElement.appendChild(host);
     ui.host = host; ui.root = root; ui.bar = root.querySelector(".bar"); ui.input = root.querySelector("input[type=text]");
     ui.count = root.querySelector(".count"); ui.prob = root.querySelector(".prob"); ui.msg = root.querySelector(".msg"); ui.path = root.querySelector(".path");
     ui.currentRole = root.querySelector(".current-role"); ui.pathToggle = root.querySelector(".path-toggle"); ui.focusToggle = root.querySelector(".focus-toggle");
     ui.range = root.querySelector("input[type=range]"); ui.range.value = state.threshold; ui.yes = root.querySelector(".yes"); ui.no = root.querySelector(".no");
+    ui.autoBtn = root.querySelector(".auto-toggle");
     ui.input.addEventListener("input", () => { ui.prob.textContent = ""; scheduleSearch(); });
     ui.input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
@@ -530,6 +607,7 @@
     root.querySelector(".prev").onclick = () => goTo(state.current - 1); root.querySelector(".next").onclick = () => goTo(state.current + 1); root.querySelector(".close").onclick = close;
     root.querySelector(".digest-label").onclick = () => { setDigestCompact(false); ui.input.focus(); };
     root.querySelector(".collapse-toggle").onclick = () => setDigestCompact(true);
+    ui.autoBtn.onclick = () => { ui.input.value = ""; clearTimeout(debounceTimer); runSearch(); };
     ui.focusToggle.onclick = () => { setFocusView(!state.focused); requestAnimationFrame(paint); };
     ui.pathToggle.onclick = () => { state.pathOpen = !state.pathOpen; syncPanelState(); };
     enableDragging(root.querySelector(".drag"));
@@ -551,14 +629,14 @@
   function setMode(mode) {
     if (mode === state.mode) return;
     setFocusView(false);
-    state.mode = mode; state.generation++; state.query = ""; state.matches = []; state.current = -1; state.pending = 0;
+    state.mode = mode; state.generation++; state.query = ""; state.matches = []; state.current = -1; state.pending = 0; state.digestAuto = null;
     // Keep the panel expanded while switching modes so the input stays visible.
     state.digestCompact = false; state.pathOpen = false;
     ui.bar.classList.toggle("digest", mode === "digest");
     syncPanelState();
     ui.root.querySelectorAll(".mode").forEach((button) => button.classList.toggle("active", button.dataset.mode === mode));
-    ui.input.placeholder = mode === "digest" ? "What do you want to understand?" : "Find by meaning…"; ui.input.setAttribute("aria-label", ui.input.placeholder);
-    ui.prob.textContent = ""; paint(); setStatus(mode === "digest" ? "Ask a question, then press Enter." : "");
+    ui.input.placeholder = mode === "digest" ? "What do you want to understand? (empty = Auto)" : "Find by meaning…"; ui.input.setAttribute("aria-label", ui.input.placeholder);
+    ui.prob.textContent = ""; paint(); setStatus(mode === "digest" ? "Type a question or press Enter for Auto." : "");
     if (!state.digestCompact) ui.input.focus();
   }
   function applyDefaultMode() {
@@ -676,7 +754,7 @@
         state.mode = defaultMode;
         if (ui.bar) ui.bar.classList.toggle("digest", state.mode === "digest");
         ui.root.querySelectorAll(".mode").forEach((button) => button.classList.toggle("active", button.dataset.mode === state.mode));
-        ui.input.placeholder = state.mode === "digest" ? "What do you want to understand?" : "Find by meaning…";
+        ui.input.placeholder = state.mode === "digest" ? "What do you want to understand? (empty = Auto)" : "Find by meaning…";
         ui.input.setAttribute("aria-label", ui.input.placeholder);
       }
       resetQuery();
@@ -689,14 +767,14 @@
   function resetQuery() {
     setFocusView(false);
     state.generation++; state.pending = 0; state.total = 0; state.usage = 0;
-    state.query = ""; state.matches = []; state.current = -1; state.literal = new Set();
+    state.query = ""; state.matches = []; state.current = -1; state.literal = new Set(); state.digestAuto = null;
     state.sentences = []; state.chunks = []; state.digestBlocks = []; state.pathOpen = false;
     state.digestCompact = false;
     if (ui.input) ui.input.value = "";
     if (ui.prob) ui.prob.textContent = "";
     if (ui.bar) ui.bar.classList.toggle("digest", state.mode === "digest");
     syncPanelState();
-    paint(); setStatus(state.mode === "digest" ? "Ask a question, then press Enter." : "");
+    paint(); setStatus(state.mode === "digest" ? "Type a question or press Enter for Auto." : "");
   }
   function close() {
     setFocusView(false);

@@ -139,11 +139,14 @@ def test_success_default_and_custom_paths(tmp_path, monkeypatch, capsys):
     assert main([str(path), "--question", SAMPLE_QUESTION]) == 0
     out = capsys.readouterr().out
     assert "Direct answer" in out and "Evidence" in out
+    assert "Signal: 100% of judged text" in out
     assert (tmp_path / "in.digest.pdf").exists()
     data = json.loads((tmp_path / "in.digest.json").read_text(encoding="utf-8"))
-    assert data["manifest_version"] == 1
+    assert data["manifest_version"] == 2
     assert data["question"] == SAMPLE_QUESTION
     assert len(data["passages"]) == 2
+    assert data["signal"]["signal_ratio"] == 1.0
+    assert data["signal"]["signal_words"] == data["signal"]["judged_words"]
     custom_pdf = tmp_path / "custom.pdf"
     custom_json = tmp_path / "custom.json"
     monkeypatch.setattr(pipeline, "judge_candidates", _fake_judge(_client_for(plan)))
